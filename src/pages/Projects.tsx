@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -18,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ProjectAccess, AccessLevel, ProjectAccessFormData } from "@/types/projectAccess";
+import { addProjectAccess, removeProjectAccess, getProjectAccess } from "@/utils/projectAccess";
 
 type Project = {
   id: string;
@@ -257,57 +259,18 @@ const Projects = () => {
 
     setLoadingAccess(true);
     try {
-      const { data: userData, error: userError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("username", accessFormData.email)
-        .single();
+      const result = await addProjectAccess(
+        selectedProjectForSharing.id,
+        accessFormData.email,
+        accessFormData.access_level
+      );
 
-      if (userError) {
-        throw new Error("User not found. Please make sure the email is correct.");
-      }
-
-      const userId = userData.id;
-
-      const { data: existingAccess, error: checkError } = await supabase
-        .from("project_access")
-        .select("*")
-        .eq("project_id", selectedProjectForSharing.id)
-        .eq("user_id", userId);
-
-      if (checkError) throw checkError;
-
-      if (existingAccess && existingAccess.length > 0) {
-        const { error } = await supabase
-          .from("project_access")
-          .update({
-            access_level: accessFormData.access_level,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existingAccess[0].id);
-
-        if (error) throw error;
-
-        toast({
-          title: "Access updated",
-          description: `Updated access for ${accessFormData.email}.`,
-        });
-      } else {
-        const { error } = await supabase
-          .from("project_access")
-          .insert({
-            project_id: selectedProjectForSharing.id,
-            user_id: userId,
-            access_level: accessFormData.access_level,
-          });
-
-        if (error) throw error;
-
-        toast({
-          title: "Access granted",
-          description: `${accessFormData.email} now has ${accessFormData.access_level} access to this project.`,
-        });
-      }
+      toast({
+        title: result.updated ? "Access updated" : "Access granted",
+        description: result.updated 
+          ? `Updated access for ${accessFormData.email}.`
+          : `${accessFormData.email} now has ${accessFormData.access_level} access to this project.`,
+      });
 
       setAccessFormData({ email: "", access_level: "view" });
       await fetchProjectAccess(selectedProjectForSharing.id);
@@ -326,12 +289,7 @@ const Projects = () => {
     if (!selectedProjectForSharing) return;
 
     try {
-      const { error } = await supabase
-        .from("project_access")
-        .delete()
-        .eq("id", accessId);
-
-      if (error) throw error;
+      await removeProjectAccess(accessId);
 
       toast({
         title: "Access removed",
@@ -503,5 +461,92 @@ const Projects = () => {
           </DialogContent>
         </Dialog>
 
-        <
+        <Dialog open={isSharingDialogOpen} onOpenChange={setIsSharingDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Share Project</DialogTitle>
+              <DialogDescription>
+                Give other users access to your project
+              </DialogDescription>
+            </DialogHeader>
 
+            <div className="space-y-4 py-4">
+              <form onSubmit={handleAddAccess} className="space-y-3">
+                <div className="grid gap-2">
+                  <label htmlFor="email" className="text-sm font-medium">
+                    Email Address *
+                  </label>
+                  <Input
+                    id="email"
+                    name="email"
+                    value={accessFormData.email}
+                    onChange={handleAccessFormChange}
+                    placeholder="Enter user email"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <label htmlFor="access_level" className="text-sm font-medium">
+                    Access Level
+                  </label>
+                  <Select
+                    value={accessFormData.access_level}
+                    onValueChange={handleAccessLevelChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select access level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="view">View</SelectItem>
+                      <SelectItem value="edit">Edit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button type="submit" disabled={loadingAccess}>
+                  {loadingAccess ? "Adding..." : "Add User"}
+                </Button>
+              </form>
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Current Access</h4>
+                {loadingAccess ? (
+                  <div className="text-sm">Loading...</div>
+                ) : projectAccessList.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No users have access yet</div>
+                ) : (
+                  <div className="space-y-2">
+                    {projectAccessList.map((access) => (
+                      <div
+                        key={access.id}
+                        className="flex items-center justify-between p-2 border rounded-md"
+                      >
+                        <div>
+                          <div className="text-sm">{access.user_id}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {access.access_level} access
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAccess(access.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+};
+
+export default Projects;
