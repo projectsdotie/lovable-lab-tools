@@ -3,13 +3,21 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
-import { PlusCircle, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ExternalLink, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { ProjectAccess, AccessLevel, ProjectAccessFormData } from "@/types/projectAccess";
 
 type Project = {
   id: string;
@@ -28,6 +36,15 @@ const Projects = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentProject, setCurrentProject] = useState<Partial<Project> | null>(null);
+  
+  const [isSharingDialogOpen, setIsSharingDialogOpen] = useState(false);
+  const [projectAccessList, setProjectAccessList] = useState<ProjectAccess[]>([]);
+  const [accessFormData, setAccessFormData] = useState<ProjectAccessFormData>({
+    email: "",
+    access_level: "view",
+  });
+  const [loadingAccess, setLoadingAccess] = useState(false);
+  const [selectedProjectForSharing, setSelectedProjectForSharing] = useState<Project | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -184,6 +201,153 @@ const Projects = () => {
     }
   };
 
+  const openSharingDialog = async (project: Project) => {
+    setSelectedProjectForSharing(project);
+    setAccessFormData({ email: "", access_level: "view" });
+    setIsSharingDialogOpen(true);
+    await fetchProjectAccess(project.id);
+  };
+
+  const fetchProjectAccess = async (projectId: string) => {
+    setLoadingAccess(true);
+    try {
+      const { data, error } = await supabase
+        .from("project_access")
+        .select("*")
+        .eq("project_id", projectId);
+
+      if (error) throw error;
+      setProjectAccessList(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error fetching access list",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAccess(false);
+    }
+  };
+
+  const handleAccessFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAccessFormData({
+      ...accessFormData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleAccessLevelChange = (value: string) => {
+    setAccessFormData({
+      ...accessFormData,
+      access_level: value as AccessLevel,
+    });
+  };
+
+  const handleAddAccess = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!accessFormData.email || !selectedProjectForSharing) {
+      toast({
+        title: "Missing information",
+        description: "Please provide a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoadingAccess(true);
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", accessFormData.email)
+        .single();
+
+      if (userError) {
+        throw new Error("User not found. Please make sure the email is correct.");
+      }
+
+      const userId = userData.id;
+
+      const { data: existingAccess, error: checkError } = await supabase
+        .from("project_access")
+        .select("*")
+        .eq("project_id", selectedProjectForSharing.id)
+        .eq("user_id", userId);
+
+      if (checkError) throw checkError;
+
+      if (existingAccess && existingAccess.length > 0) {
+        const { error } = await supabase
+          .from("project_access")
+          .update({
+            access_level: accessFormData.access_level,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingAccess[0].id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Access updated",
+          description: `Updated access for ${accessFormData.email}.`,
+        });
+      } else {
+        const { error } = await supabase
+          .from("project_access")
+          .insert({
+            project_id: selectedProjectForSharing.id,
+            user_id: userId,
+            access_level: accessFormData.access_level,
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: "Access granted",
+          description: `${accessFormData.email} now has ${accessFormData.access_level} access to this project.`,
+        });
+      }
+
+      setAccessFormData({ email: "", access_level: "view" });
+      await fetchProjectAccess(selectedProjectForSharing.id);
+    } catch (error: any) {
+      toast({
+        title: "Error granting access",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAccess(false);
+    }
+  };
+
+  const handleRemoveAccess = async (accessId: string) => {
+    if (!selectedProjectForSharing) return;
+
+    try {
+      const { error } = await supabase
+        .from("project_access")
+        .delete()
+        .eq("id", accessId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Access removed",
+        description: "The user's access has been removed.",
+      });
+
+      await fetchProjectAccess(selectedProjectForSharing.id);
+    } catch (error: any) {
+      toast({
+        title: "Error removing access",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -244,6 +408,13 @@ const Projects = () => {
                       onClick={() => handleOpenDialog(project)}
                     >
                       <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openSharingDialog(project)}
+                    >
+                      <Users className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
@@ -331,9 +502,6 @@ const Projects = () => {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
-    </div>
-  );
-};
 
-export default Projects;
+        <
+
