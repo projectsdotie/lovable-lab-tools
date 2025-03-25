@@ -15,14 +15,27 @@ export const useTools = () => {
     queryKey: ['tools'],
     queryFn: fetchTools,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onError: (err: Error) => {
+    meta: {
+      onError: (err: Error) => {
+        toast({
+          title: "Failed to load tools",
+          description: err.message,
+          variant: "destructive",
+        });
+      }
+    }
+  });
+
+  // Show toast when an error occurs
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Failed to load tools",
-        description: err.message,
+        description: (error as Error).message,
         variant: "destructive",
       });
     }
-  });
+  }, [error, toast]);
 
   return {
     tools: tools || [],
