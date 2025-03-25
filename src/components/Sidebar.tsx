@@ -112,7 +112,7 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
           
           <div className={cn("p-4", activeTool === "prd" || activeTool === "sql" || activeTool === "kb" ? "block" : "hidden")}>
-            <GeneratorTools type={activeTool} />
+            <GeneratorTools type={activeTool as "prd" | "sql" | "kb"} />
           </div>
         </div>
       </div>
