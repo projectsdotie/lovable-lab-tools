@@ -1,9 +1,19 @@
 
 import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Users, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/UserMenu";
+import { Link } from "react-router-dom";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu";
 
 interface HeaderProps {
   className?: string;
@@ -38,6 +48,45 @@ export function Header({ className }: HeaderProps) {
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center space-x-4">
           <h1 className="text-xl font-medium">Lovable Lab Tools</h1>
+          
+          <NavigationMenu className="ml-6 hidden sm:flex">
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <Link to="/">
+                  <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                    <LayoutDashboard className="w-4 h-4 mr-2" />
+                    Dashboard
+                  </NavigationMenuLink>
+                </Link>
+              </NavigationMenuItem>
+              
+              <NavigationMenuItem>
+                <Link to="/teams">
+                  <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                    <Users className="w-4 h-4 mr-2" />
+                    Teams
+                  </NavigationMenuLink>
+                </Link>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+        </div>
+
+        {/* Mobile navigation buttons */}
+        <div className="sm:hidden flex space-x-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/">
+              <LayoutDashboard className="w-4 h-4 mr-1" />
+              Dashboard
+            </Link>
+          </Button>
+          
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/teams">
+              <Users className="w-4 h-4 mr-1" />
+              Teams
+            </Link>
+          </Button>
         </div>
 
         <div className="flex items-center space-x-2">
