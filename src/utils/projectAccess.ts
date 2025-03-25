@@ -84,23 +84,52 @@ export const removeProjectAccess = async (accessId: string) => {
  * @param projectId The ID of the project to get access for
  */
 export const getProjectAccess = async (projectId: string) => {
-  // Using explicitly defined relation to avoid Supabase's automatic joining issues
-  const { data, error } = await supabase
-    .from("project_access")
-    .select(`
-      id,
-      user_id,
-      project_id,
-      access_level,
-      created_at,
-      updated_at,
-      profiles:profiles!user_id(username)
-    `)
-    .eq("project_id", projectId);
+  try {
+    // Modified query to handle the profiles relation correctly
+    const { data, error } = await supabase
+      .from("project_access")
+      .select(`
+        id,
+        user_id,
+        project_id,
+        access_level,
+        created_at,
+        updated_at
+      `)
+      .eq("project_id", projectId);
 
-  if (error) throw error;
-  
-  return data || [];
+    if (error) throw error;
+    
+    // Now fetch the usernames separately to avoid the join error
+    if (data && data.length > 0) {
+      // Get all user IDs from the access data
+      const userIds = data.map(access => access.user_id);
+      
+      // Fetch profiles for these user IDs
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds);
+        
+      if (profilesError) throw profilesError;
+      
+      // Map username to each access entry
+      const accessWithProfiles = data.map(access => {
+        const userProfile = profilesData?.find(profile => profile.id === access.user_id);
+        return {
+          ...access,
+          profiles: userProfile ? { username: userProfile.username } : null
+        };
+      });
+      
+      return accessWithProfiles;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error fetching project access:", error);
+    throw error;
+  }
 };
 
 /**

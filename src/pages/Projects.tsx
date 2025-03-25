@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -193,7 +192,6 @@ const Projects = () => {
   };
 
   const openSharingDialog = async (project: Project) => {
-    // Check if the current user is the owner of the project
     if (project.user_id !== user?.id) {
       toast({
         title: "Cannot share project",
