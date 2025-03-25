@@ -60,15 +60,12 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
           setCurrentUrl(processedUrl);
         }
         
-        toast({
-          title: "Project loaded",
-          description: `Successfully loaded project: ${projectData.name}`,
-        });
+        // Don't call toast here - it causes the infinite render loop
       } catch (error) {
         console.error("Error loading saved project data:", error);
       }
     }
-  }, [toast]);
+  }, []);
   
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUrl(e.target.value);

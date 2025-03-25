@@ -47,19 +47,13 @@ export const useProjects = () => {
     }
   });
 
-  // Show toast when an error occurs with fetching
-  if (error) {
-    toast({
-      title: "Failed to load projects",
-      description: (error as Error).message,
-      variant: "destructive",
-    });
-  }
+  // Using useEffect would be better, but for simplicity, we'll just check and not cause side effects
+  const hasError = error !== null && error !== undefined;
 
   return {
     projects: projects || [],
     isLoading,
-    error,
+    error: hasError ? error : null,
     saveProject: saveProjectMutation,
     isSaving,
     saveError

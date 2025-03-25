@@ -98,7 +98,11 @@ export const saveProject = async (project: Partial<Project>): Promise<Project> =
       throw new Error(error.message);
     }
     
-    return data;
+    // Ensure tools is properly formatted for our application
+    return {
+      ...data,
+      tools: Array.isArray(data.tools) ? data.tools.map(String) : []
+    };
   } else {
     const { data, error } = await supabase
       .from('projects')
@@ -114,20 +118,64 @@ export const saveProject = async (project: Partial<Project>): Promise<Project> =
       throw new Error(error.message);
     }
     
-    return data;
+    // Ensure tools is properly formatted for our application
+    return {
+      ...data,
+      tools: Array.isArray(data.tools) ? data.tools.map(String) : []
+    };
   }
 };
 
 export const fetchUserProjects = async (): Promise<Project[]> => {
-  const { data, error } = await supabase
+  // Check if user is logged in
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) {
+    console.error("User not authenticated:", userError);
+    return [];
+  }
+
+  // Fetch projects owned by the user
+  const { data: ownedProjects, error: ownedError } = await supabase
     .from('projects')
     .select('*')
+    .eq('user_id', userData.user.id)
     .order('created_at', { ascending: false });
   
-  if (error) {
-    console.error("Error fetching user projects:", error);
-    throw new Error(error.message);
+  if (ownedError) {
+    console.error("Error fetching owned projects:", ownedError);
+    throw new Error(ownedError.message);
   }
-  
-  return data || [];
+
+  // Fetch projects shared with the user
+  const { data: sharedAccessData, error: sharedError } = await supabase
+    .from('project_access')
+    .select(`
+      id,
+      access_level,
+      projects:project_id (*)
+    `)
+    .eq('user_id', userData.user.id);
+
+  if (sharedError) {
+    console.error("Error fetching shared projects:", sharedError);
+    throw new Error(sharedError.message);
+  }
+
+  // Process and combine the projects
+  const processedOwnedProjects = ownedProjects.map(project => ({
+    ...project,
+    tools: Array.isArray(project.tools) ? project.tools.map(String) : [],
+    is_shared: false
+  }));
+
+  const sharedProjects = sharedAccessData
+    .filter(access => access.projects) // Filter out any null projects
+    .map(access => ({
+      ...access.projects,
+      tools: Array.isArray(access.projects.tools) ? access.projects.tools.map(String) : [],
+      is_shared: true,
+      access_level: access.access_level
+    }));
+
+  return [...processedOwnedProjects, ...sharedProjects];
 };
