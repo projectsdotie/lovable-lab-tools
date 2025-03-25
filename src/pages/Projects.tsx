@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+
+import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
-import { PlusCircle, Pencil, Trash2, ExternalLink, Users, Share2, LayoutDashboard } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ExternalLink, Users, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,20 +21,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { ProjectAccess, AccessLevel, ProjectAccessFormData, Project } from "@/types/projectAccess";
-import { addProjectAccess, removeProjectAccess, getProjectAccess, getAllAccessibleProjects } from "@/utils/projectAccess";
+import { addProjectAccess, removeProjectAccess, getProjectAccess } from "@/utils/projectAccess";
 import { useTools } from "@/hooks/useTools";
+import { useProjects } from "@/hooks/useProjects";
 
 const Projects = () => {
   const { user, loading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentProject, setCurrentProject] = useState<Partial<Project> | null>(null);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const { tools, isLoading: toolsLoading } = useTools();
+  const { projects, isLoading, saveProject, isSaving, saveError } = useProjects();
   
   const [isSharingDialogOpen, setIsSharingDialogOpen] = useState(false);
   const [projectAccessList, setProjectAccessList] = useState<ProjectAccess[]>([]);
@@ -43,35 +44,6 @@ const Projects = () => {
   });
   const [loadingAccess, setLoadingAccess] = useState(false);
   const [selectedProjectForSharing, setSelectedProjectForSharing] = useState<Project | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      fetchProjects();
-    }
-  }, [user]);
-
-  const fetchProjects = async () => {
-    try {
-      setIsLoading(true);
-      const allProjects = await getAllAccessibleProjects();
-      
-      const projectsWithValidTools = allProjects.map(project => ({
-        ...project,
-        tools: Array.isArray(project.tools) ? project.tools.map(String) : []
-      }));
-      
-      setProjects(projectsWithValidTools);
-    } catch (error: any) {
-      console.error("Error fetching projects:", error);
-      toast({
-        title: "Error fetching projects",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleOpenDialog = async (project?: Project) => {
     if (project) {
@@ -137,53 +109,25 @@ const Projects = () => {
       });
       return;
     }
-
-    try {
-      if (isEditing && currentProject.id) {
-        const { error } = await supabase
-          .from("projects")
-          .update({
-            name: currentProject.name,
-            description: currentProject.description,
-            url: currentProject.url,
-            tools: selectedTools,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", currentProject.id);
-
-        if (error) throw error;
-
-        toast({
-          title: "Project updated",
-          description: "Your project has been updated successfully.",
-        });
-      } else {
-        const { error } = await supabase
-          .from("projects")
-          .insert({
-            name: currentProject.name,
-            description: currentProject.description,
-            url: currentProject.url,
-            tools: selectedTools,
-            user_id: user?.id,
-          });
-
-        if (error) throw error;
-
-        toast({
-          title: "Project created",
-          description: "Your project has been created successfully.",
-        });
-      }
-
-      fetchProjects();
-      handleCloseDialog();
-    } catch (error: any) {
+    
+    if (!currentProject?.description) {
       toast({
-        title: "Error saving project",
-        description: error.message,
+        title: "Project description is required",
         variant: "destructive",
       });
+      return;
+    }
+
+    try {
+      saveProject({
+        ...currentProject,
+        tools: selectedTools
+      });
+      
+      handleCloseDialog();
+    } catch (error: any) {
+      // Error handling is done in the hook
+      console.error("Error in project form submit:", error);
     }
   };
 
@@ -202,7 +146,8 @@ const Projects = () => {
           description: "Your project has been deleted successfully.",
         });
 
-        fetchProjects();
+        // Refresh projects
+        window.location.reload();
       } catch (error: any) {
         toast({
           title: "Error deleting project",
@@ -406,10 +351,10 @@ const Projects = () => {
                     <span className="font-medium">Created:</span>{" "}
                     {new Date(project.created_at).toLocaleDateString()}
                   </div>
-                  {(project as any).tools && (project as any).tools.length > 0 && (
+                  {project.tools && project.tools.length > 0 && (
                     <div className="text-sm text-muted-foreground mt-2">
                       <span className="font-medium">Tools:</span>{" "}
-                      {getToolNames((project as any).tools)}
+                      {getToolNames(project.tools)}
                     </div>
                   )}
                 </CardContent>
@@ -466,6 +411,12 @@ const Projects = () => {
               </DialogDescription>
             </DialogHeader>
 
+            {saveError && (
+              <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                {saveError}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -484,7 +435,7 @@ const Projects = () => {
 
                 <div className="grid gap-2">
                   <label htmlFor="description" className="text-sm font-medium">
-                    Description
+                    Description *
                   </label>
                   <Textarea
                     id="description"
@@ -493,6 +444,7 @@ const Projects = () => {
                     onChange={handleChange}
                     placeholder="Enter project description"
                     rows={3}
+                    required
                   />
                 </div>
 
@@ -541,7 +493,12 @@ const Projects = () => {
                 <Button variant="outline" type="button" onClick={handleCloseDialog}>
                   Cancel
                 </Button>
-                <Button type="submit">{isEditing ? "Update" : "Create"}</Button>
+                <Button 
+                  type="submit"
+                  disabled={isSaving || !currentProject?.name || !currentProject?.description}
+                >
+                  {isSaving ? "Saving..." : (isEditing ? "Update" : "Create")}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>

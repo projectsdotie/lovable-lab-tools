@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -8,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useTools } from "@/hooks/useTools";
 import { Badge } from "@/components/ui/badge";
+import { useProjects } from "@/hooks/useProjects";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Select,
   SelectContent,
@@ -18,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 
 interface ProjectPreviewProps {
   className?: string;
@@ -31,10 +32,12 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { tools, isLoading: toolsLoading } = useTools();
+  const { saveProject, isSaving, saveError } = useProjects();
   
   // Check for saved project data on component mount
   useEffect(() => {
@@ -45,6 +48,7 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
         setProjectName(projectData.name || "");
         setProjectDescription(projectData.description || "");
         setSelectedTools(projectData.tools || []);
+        setProjectId(projectData.id);
         
         // Update URL if it exists in the saved project
         if (projectData.url) {
@@ -106,43 +110,28 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
       return;
     }
     
-    try {
-      const { data, error } = await supabase
-        .from("projects")
-        .insert({
-          name: projectName,
-          description: projectDescription,
-          url: currentUrl,
-          user_id: user.id,
-          tools: selectedTools
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
+    if (!projectDescription.trim()) {
       toast({
-        title: "Project saved",
-        description: "Your project has been saved successfully.",
+        title: "Project description is required",
+        description: "Please enter a description for your project",
+        variant: "destructive",
       });
-      
-      setIsDialogOpen(false);
-      
-      // Save current project to localStorage for later access
-      const currentProject = {
-        id: data.id,
+      return;
+    }
+    
+    try {
+      saveProject({
+        id: projectId,
         name: projectName,
         description: projectDescription,
         url: currentUrl,
         tools: selectedTools
-      };
-      localStorage.setItem('currentProject', JSON.stringify(currentProject));
-    } catch (error: any) {
-      toast({
-        title: "Error saving project",
-        description: error.message,
-        variant: "destructive",
       });
+      
+      setIsDialogOpen(false);
+    } catch (error: any) {
+      // Error handling is done in the hook
+      console.error("Error in save project handler:", error);
     }
   };
 
@@ -220,6 +209,12 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
             </DialogDescription>
           </DialogHeader>
           
+          {saveError && (
+            <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+              {saveError}
+            </div>
+          )}
+          
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <label htmlFor="name" className="text-sm font-medium">
@@ -236,7 +231,7 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
             
             <div className="grid gap-2">
               <label htmlFor="description" className="text-sm font-medium">
-                Description
+                Description *
               </label>
               <Textarea
                 id="description"
@@ -244,6 +239,7 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
                 onChange={(e) => setProjectDescription(e.target.value)}
                 placeholder="Enter project description"
                 rows={3}
+                required
               />
             </div>
             
@@ -293,9 +289,9 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
             </Button>
             <Button 
               onClick={handleSaveProject}
-              disabled={!projectName.trim()}
+              disabled={isSaving || !projectName.trim() || !projectDescription.trim()}
             >
-              Save
+              {isSaving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
