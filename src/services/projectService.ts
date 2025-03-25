@@ -72,122 +72,135 @@ export const saveProject = async (project: Partial<Project>): Promise<Project> =
     throw new Error("Project description is required");
   }
   
-  const userId = (await supabase.auth.getUser()).data.user?.id;
+  const { data: userData, error: userError } = await supabase.auth.getUser();
   
-  if (!userId) {
+  if (userError || !userData.user?.id) {
     throw new Error("User must be logged in to save a project");
   }
   
-  // Check if we're updating or creating
-  if (project.id) {
-    // For updates, only include fields that should be updated
-    // Ensure name is always included as it's required by Supabase
-    const updateData = {
-      name: project.name,
-      description: project.description,
-      url: project.url,
-      tools: project.tools,
-      updated_at: new Date().toISOString()
-    };
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .update(updateData)
-      .eq('id', project.id)
-      .select()
-      .single();
+  const userId = userData.user.id;
+  
+  try {
+    // Check if we're updating or creating
+    if (project.id) {
+      // For updates, always include name as it's required by Supabase
+      const updateData = {
+        name: project.name,
+        description: project.description,
+        url: project.url,
+        tools: project.tools,
+        updated_at: new Date().toISOString()
+      };
       
-    if (error) {
-      console.error("Error updating project:", error);
-      throw new Error(error.message);
-    }
-    
-    // Ensure tools is properly formatted for our application
-    return {
-      ...data,
-      tools: Array.isArray(data.tools) ? data.tools.map(String) : []
-    };
-  } else {
-    // For new projects, include all required fields
-    const insertData = {
-      name: project.name,
-      description: project.description,
-      url: project.url || null,
-      tools: project.tools || [],
-      user_id: userId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .insert(insertData)
-      .select()
-      .single();
+      const { data, error } = await supabase
+        .from('projects')
+        .update(updateData)
+        .eq('id', project.id)
+        .select()
+        .single();
+        
+      if (error) {
+        console.error("Error updating project:", error);
+        throw new Error(error.message);
+      }
       
-    if (error) {
-      console.error("Error creating project:", error);
-      throw new Error(error.message);
+      // Ensure tools is properly formatted for our application
+      return {
+        ...data,
+        tools: Array.isArray(data.tools) ? data.tools.map(String) : []
+      };
+    } else {
+      // For new projects, include all required fields
+      const insertData = {
+        name: project.name,
+        description: project.description,
+        url: project.url || null,
+        tools: project.tools || [],
+        user_id: userId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      const { data, error } = await supabase
+        .from('projects')
+        .insert(insertData)
+        .select()
+        .single();
+        
+      if (error) {
+        console.error("Error creating project:", error);
+        throw new Error(error.message);
+      }
+      
+      // Ensure tools is properly formatted for our application
+      return {
+        ...data,
+        tools: Array.isArray(data.tools) ? data.tools.map(String) : []
+      };
     }
-    
-    // Ensure tools is properly formatted for our application
-    return {
-      ...data,
-      tools: Array.isArray(data.tools) ? data.tools.map(String) : []
-    };
+  } catch (error) {
+    console.error("Error in saveProject:", error);
+    throw error;
   }
 };
 
 export const fetchUserProjects = async (): Promise<Project[]> => {
-  // Check if user is logged in
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) {
-    console.error("User not authenticated:", userError);
-    return [];
-  }
+  try {
+    // Check if user is logged in
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      console.error("User not authenticated:", userError);
+      return [];
+    }
 
-  // Fetch projects owned by the user
-  const { data: ownedProjects, error: ownedError } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('user_id', userData.user.id)
-    .order('created_at', { ascending: false });
-  
-  if (ownedError) {
-    console.error("Error fetching owned projects:", ownedError);
-    throw new Error(ownedError.message);
-  }
+    const userId = userData.user.id;
 
-  // Fetch projects shared with the user
-  const { data: sharedAccessData, error: sharedError } = await supabase
-    .from('project_access')
-    .select(`
-      id,
-      access_level,
-      projects:project_id (*)
-    `)
-    .eq('user_id', userData.user.id);
+    // Fetch projects owned by the user
+    const { data: ownedProjects, error: ownedError } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (ownedError) {
+      console.error("Error fetching owned projects:", ownedError);
+      throw new Error(ownedError.message);
+    }
 
-  if (sharedError) {
-    console.error("Error fetching shared projects:", sharedError);
-    throw new Error(sharedError.message);
-  }
+    // Fetch projects shared with the user
+    const { data: sharedAccessData, error: sharedError } = await supabase
+      .from('project_access')
+      .select(`
+        id,
+        access_level,
+        projects:project_id (*)
+      `)
+      .eq('user_id', userId);
 
-  // Process and combine the projects
-  const processedOwnedProjects = ownedProjects.map(project => ({
-    ...project,
-    tools: Array.isArray(project.tools) ? project.tools.map(String) : [],
-    is_shared: false
-  }));
+    if (sharedError) {
+      console.error("Error fetching shared projects:", sharedError);
+      throw new Error(sharedError.message);
+    }
 
-  const sharedProjects = sharedAccessData
-    .filter(access => access.projects) // Filter out any null projects
-    .map(access => ({
-      ...access.projects,
-      tools: Array.isArray(access.projects.tools) ? access.projects.tools.map(String) : [],
-      is_shared: true,
-      access_level: access.access_level
+    // Process and combine the projects
+    const processedOwnedProjects = ownedProjects.map(project => ({
+      ...project,
+      tools: Array.isArray(project.tools) ? project.tools.map(String) : [],
+      is_shared: false
     }));
 
-  return [...processedOwnedProjects, ...sharedProjects];
+    const sharedProjects = sharedAccessData
+      .filter(access => access.projects) // Filter out any null projects
+      .map(access => ({
+        ...access.projects,
+        tools: Array.isArray(access.projects.tools) ? access.projects.tools.map(String) : [],
+        is_shared: true,
+        access_level: access.access_level
+      }));
+
+    return [...processedOwnedProjects, ...sharedProjects];
+  } catch (error) {
+    console.error("Error in fetchUserProjects:", error);
+    throw error;
+  }
 };
