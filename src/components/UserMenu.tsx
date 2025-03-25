@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, LogOut, LogIn } from "lucide-react";
+import { User, LogOut, LogIn, FolderKanban } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function UserMenu() {
@@ -59,6 +59,12 @@ export function UserMenu() {
           <Link to="/profile" className="cursor-pointer flex w-full items-center">
             <User className="mr-2 h-4 w-4" />
             <span>Profile</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/projects" className="cursor-pointer flex w-full items-center">
+            <FolderKanban className="mr-2 h-4 w-4" />
+            <span>My Projects</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

@@ -1,0 +1,337 @@
+
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Navigate } from "react-router-dom";
+import { Header } from "@/components/Header";
+import { supabase } from "@/integrations/supabase/client";
+import { PlusCircle, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+
+type Project = {
+  id: string;
+  name: string;
+  description: string | null;
+  url: string | null;
+  created_at: string;
+};
+
+const Projects = () => {
+  const { user, loading } = useAuth();
+  const { toast } = useToast();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentProject, setCurrentProject] = useState<Partial<Project> | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      fetchProjects();
+    }
+  }, [user]);
+
+  const fetchProjects = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setProjects(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error fetching projects",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenDialog = (project?: Project) => {
+    if (project) {
+      setCurrentProject(project);
+      setIsEditing(true);
+    } else {
+      setCurrentProject({ name: "", description: "", url: "" });
+      setIsEditing(false);
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setCurrentProject(null);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (currentProject) {
+      setCurrentProject({
+        ...currentProject,
+        [e.target.name]: e.target.value,
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!currentProject?.name) {
+      toast({
+        title: "Project name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      if (isEditing && currentProject.id) {
+        // Update existing project
+        const { error } = await supabase
+          .from("projects")
+          .update({
+            name: currentProject.name,
+            description: currentProject.description,
+            url: currentProject.url,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", currentProject.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Project updated",
+          description: "Your project has been updated successfully.",
+        });
+      } else {
+        // Create new project
+        const { error } = await supabase
+          .from("projects")
+          .insert({
+            name: currentProject.name,
+            description: currentProject.description,
+            url: currentProject.url,
+            user_id: user?.id,
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: "Project created",
+          description: "Your project has been created successfully.",
+        });
+      }
+
+      // Refresh the projects list
+      fetchProjects();
+      handleCloseDialog();
+    } catch (error: any) {
+      toast({
+        title: "Error saving project",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this project?")) {
+      try {
+        const { error } = await supabase
+          .from("projects")
+          .delete()
+          .eq("id", id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Project deleted",
+          description: "Your project has been deleted successfully.",
+        });
+
+        // Refresh the projects list
+        fetchProjects();
+      } catch (error: any) {
+        toast({
+          title: "Error deleting project",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleOpenProjectUrl = (url: string) => {
+    let processedUrl = url.trim();
+    
+    // Add https:// if no protocol is specified
+    if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+      processedUrl = `https://${processedUrl}`;
+    }
+    
+    window.open(processedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" />;
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background antialiased">
+      <Header />
+      <div className="container mx-auto p-6 max-w-7xl">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">My Projects</h1>
+          <Button onClick={() => handleOpenDialog()} className="gap-2">
+            <PlusCircle className="h-4 w-4" />
+            Add Project
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12">Loading projects...</div>
+        ) : projects.length === 0 ? (
+          <div className="bg-muted/50 rounded-lg p-12 text-center">
+            <h3 className="text-xl font-medium mb-2">No projects yet</h3>
+            <p className="text-muted-foreground mb-6">Start by creating your first project</p>
+            <Button onClick={() => handleOpenDialog()} className="gap-2">
+              <PlusCircle className="h-4 w-4" />
+              Create Project
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((project) => (
+              <Card key={project.id} className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-xl">{project.name}</CardTitle>
+                  <CardDescription className="line-clamp-3">
+                    {project.description || "No description"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {project.url && (
+                    <div className="text-sm text-muted-foreground truncate">
+                      <span className="font-medium">URL:</span> {project.url}
+                    </div>
+                  )}
+                  <div className="text-sm text-muted-foreground mt-2">
+                    <span className="font-medium">Created:</span>{" "}
+                    {new Date(project.created_at).toLocaleDateString()}
+                  </div>
+                </CardContent>
+                <CardFooter className="border-t pt-4 flex justify-between">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenDialog(project)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(project.id)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {project.url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenProjectUrl(project.url || "")}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-1" /> Open
+                    </Button>
+                  )}
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{isEditing ? "Edit Project" : "Add New Project"}</DialogTitle>
+              <DialogDescription>
+                {isEditing
+                  ? "Update your project details below."
+                  : "Fill in the details for your new project."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <label htmlFor="name" className="text-sm font-medium">
+                    Project Name *
+                  </label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={currentProject?.name || ""}
+                    onChange={handleChange}
+                    placeholder="Enter project name"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <label htmlFor="description" className="text-sm font-medium">
+                    Description
+                  </label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    value={currentProject?.description || ""}
+                    onChange={handleChange}
+                    placeholder="Enter project description"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <label htmlFor="url" className="text-sm font-medium">
+                    Project URL
+                  </label>
+                  <Input
+                    id="url"
+                    name="url"
+                    value={currentProject?.url || ""}
+                    onChange={handleChange}
+                    placeholder="Enter project URL"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" type="button" onClick={handleCloseDialog}>
+                  Cancel
+                </Button>
+                <Button type="submit">{isEditing ? "Update" : "Create"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+};
+
+export default Projects;
