@@ -78,17 +78,20 @@ export const saveProject = async (project: Partial<Project>): Promise<Project> =
     throw new Error("User must be logged in to save a project");
   }
   
-  const projectData = {
-    ...project,
-    user_id: userId,
-    updated_at: new Date().toISOString()
-  };
-  
   // Check if we're updating or creating
   if (project.id) {
+    // For updates, only include fields that should be updated
+    const updateData = {
+      name: project.name,
+      description: project.description,
+      url: project.url,
+      tools: project.tools,
+      updated_at: new Date().toISOString()
+    };
+    
     const { data, error } = await supabase
       .from('projects')
-      .update(projectData)
+      .update(updateData)
       .eq('id', project.id)
       .select()
       .single();
@@ -104,12 +107,20 @@ export const saveProject = async (project: Partial<Project>): Promise<Project> =
       tools: Array.isArray(data.tools) ? data.tools.map(String) : []
     };
   } else {
+    // For new projects, include all required fields
+    const insertData = {
+      name: project.name,
+      description: project.description,
+      url: project.url,
+      tools: project.tools || [],
+      user_id: userId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
     const { data, error } = await supabase
       .from('projects')
-      .insert({
-        ...projectData,
-        created_at: new Date().toISOString(),
-      })
+      .insert(insertData)
       .select()
       .single();
       
