@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -59,8 +58,6 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
           setUrl(processedUrl);
           setCurrentUrl(processedUrl);
         }
-        
-        // Don't call toast here - it causes the infinite render loop
       } catch (error) {
         console.error("Error loading saved project data:", error);
       }
@@ -87,7 +84,7 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
     window.open(currentUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleSaveProject = async () => {
+  const handleSaveProject = useCallback(() => {
     if (!user) {
       toast({
         title: "Authentication required",
@@ -130,7 +127,7 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
       // Error handling is done in the hook
       console.error("Error in save project handler:", error);
     }
-  };
+  }, [projectId, projectName, projectDescription, currentUrl, selectedTools, user, saveProject, navigate, toast]);
 
   const openSaveDialog = () => {
     setIsDialogOpen(true);

@@ -136,6 +136,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_project_access: {
+        Args: {
+          p_project_id: string
+        }
+        Returns: {
+          id: string
+          user_id: string
+          project_id: string
+          access_level: Database["public"]["Enums"]["access_level"]
+          created_at: string
+          updated_at: string
+          username: string
+        }[]
+      }
     }
     Enums: {
       access_level: "view" | "edit"

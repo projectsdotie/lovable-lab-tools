@@ -81,6 +81,7 @@ export const saveProject = async (project: Partial<Project>): Promise<Project> =
   // Check if we're updating or creating
   if (project.id) {
     // For updates, only include fields that should be updated
+    // Ensure name is always included as it's required by Supabase
     const updateData = {
       name: project.name,
       description: project.description,
@@ -111,7 +112,7 @@ export const saveProject = async (project: Partial<Project>): Promise<Project> =
     const insertData = {
       name: project.name,
       description: project.description,
-      url: project.url,
+      url: project.url || null,
       tools: project.tools || [],
       user_id: userId,
       created_at: new Date().toISOString(),
