@@ -14,14 +14,16 @@ export const useTools = () => {
   } = useQuery({
     queryKey: ['tools'],
     queryFn: fetchTools,
-    onError: (err: Error) => {
-      toast({
-        title: "Failed to load tools",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    onSettled: (data, err) => {
+      if (err) {
+        toast({
+          title: "Failed to load tools",
+          description: (err as Error).message,
+          variant: "destructive",
+        });
+      }
+    }
   });
 
   return {

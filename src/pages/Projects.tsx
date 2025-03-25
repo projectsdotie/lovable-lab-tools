@@ -54,7 +54,13 @@ const Projects = () => {
     try {
       setIsLoading(true);
       const allProjects = await getAllAccessibleProjects();
-      setProjects(allProjects);
+      
+      const projectsWithValidTools = allProjects.map(project => ({
+        ...project,
+        tools: Array.isArray(project.tools) ? project.tools : []
+      }));
+      
+      setProjects(projectsWithValidTools);
     } catch (error: any) {
       console.error("Error fetching projects:", error);
       toast({
@@ -78,7 +84,9 @@ const Projects = () => {
           .single();
           
         if (error) throw error;
-        setSelectedTools(data.tools || []);
+        
+        const toolsArray = Array.isArray(data.tools) ? data.tools : [];
+        setSelectedTools(toolsArray);
       } catch (error) {
         console.error("Error fetching project tools:", error);
         setSelectedTools([]);
