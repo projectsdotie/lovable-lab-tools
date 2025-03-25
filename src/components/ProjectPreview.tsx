@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,35 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  
+  // Check for saved project data on component mount
+  useEffect(() => {
+    const savedProject = localStorage.getItem('currentProject');
+    if (savedProject) {
+      try {
+        const projectData = JSON.parse(savedProject);
+        setProjectName(projectData.name || "");
+        setProjectDescription(projectData.description || "");
+        
+        // Update URL if it exists in the saved project
+        if (projectData.url) {
+          let processedUrl = projectData.url.trim();
+          if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+            processedUrl = `https://${processedUrl}`;
+          }
+          setUrl(processedUrl);
+          setCurrentUrl(processedUrl);
+        }
+        
+        toast({
+          title: "Project loaded",
+          description: `Successfully loaded project: ${projectData.name}`,
+        });
+      } catch (error) {
+        console.error("Error loading saved project data:", error);
+      }
+    }
+  }, [toast]);
   
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUrl(e.target.value);
@@ -74,6 +103,15 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
       });
       
       setIsDialogOpen(false);
+      
+      // Save current project to localStorage for later access
+      const currentProject = {
+        name: projectName,
+        description: projectDescription,
+        url: currentUrl,
+      };
+      localStorage.setItem('currentProject', JSON.stringify(currentProject));
+      
       setProjectName("");
       setProjectDescription("");
     } catch (error: any) {

@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { PlusCircle, Pencil, Trash2, ExternalLink } from "lucide-react";
@@ -23,6 +22,7 @@ type Project = {
 const Projects = () => {
   const { user, loading } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -169,15 +169,38 @@ const Projects = () => {
     }
   };
 
-  const handleOpenProjectUrl = (url: string) => {
-    let processedUrl = url.trim();
+  const handleOpenProjectUrl = (project: Project) => {
+    let processedUrl = project.url?.trim() || "";
     
     // Add https:// if no protocol is specified
     if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
       processedUrl = `https://${processedUrl}`;
     }
     
-    window.open(processedUrl, '_blank', 'noopener,noreferrer');
+    // Store the current project in localStorage to access it from the dashboard
+    try {
+      localStorage.setItem('currentProject', JSON.stringify(project));
+      
+      // Display success message
+      toast({
+        title: "Project loaded",
+        description: `Opening ${project.name} and loading associated tools data.`,
+      });
+      
+      // Navigate to the dashboard (/) with the loaded project
+      navigate('/');
+      
+      // Also open the project URL in a new tab if it exists
+      if (processedUrl) {
+        window.open(processedUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error loading project",
+        description: "Could not load project data.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -250,15 +273,13 @@ const Projects = () => {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  {project.url && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenProjectUrl(project.url || "")}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-1" /> Open
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenProjectUrl(project)}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" /> Open
+                  </Button>
                 </CardFooter>
               </Card>
             ))}
