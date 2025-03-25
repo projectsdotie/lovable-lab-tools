@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useTools } from "@/hooks/useTools";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ProjectPreviewProps {
   className?: string;
@@ -21,9 +30,11 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { tools, isLoading: toolsLoading } = useTools();
   
   // Check for saved project data on component mount
   useEffect(() => {
@@ -33,6 +44,7 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
         const projectData = JSON.parse(savedProject);
         setProjectName(projectData.name || "");
         setProjectDescription(projectData.description || "");
+        setSelectedTools(projectData.tools || []);
         
         // Update URL if it exists in the saved project
         if (projectData.url) {
@@ -85,15 +97,27 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
       return;
     }
     
+    if (!projectName.trim()) {
+      toast({
+        title: "Project name is required",
+        description: "Please enter a name for your project",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("projects")
         .insert({
           name: projectName,
           description: projectDescription,
           url: currentUrl,
           user_id: user.id,
-        });
+          tools: selectedTools
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -106,14 +130,13 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
       
       // Save current project to localStorage for later access
       const currentProject = {
+        id: data.id,
         name: projectName,
         description: projectDescription,
         url: currentUrl,
+        tools: selectedTools
       };
       localStorage.setItem('currentProject', JSON.stringify(currentProject));
-      
-      setProjectName("");
-      setProjectDescription("");
     } catch (error: any) {
       toast({
         title: "Error saving project",
@@ -125,6 +148,16 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
 
   const openSaveDialog = () => {
     setIsDialogOpen(true);
+  };
+
+  const handleToolToggle = (toolId: string) => {
+    setSelectedTools(prev => {
+      if (prev.includes(toolId)) {
+        return prev.filter(id => id !== toolId);
+      } else {
+        return [...prev, toolId];
+      }
+    });
   };
 
   return (
@@ -224,6 +257,33 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
                 readOnly
                 className="bg-muted"
               />
+            </div>
+            
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">
+                Tools Used
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {toolsLoading ? (
+                  <div>Loading tools...</div>
+                ) : (
+                  tools.map((tool) => (
+                    <div key={tool.id} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`tool-${tool.id}`} 
+                        checked={selectedTools.includes(tool.id)}
+                        onCheckedChange={() => handleToolToggle(tool.id)}
+                      />
+                      <label 
+                        htmlFor={`tool-${tool.id}`}
+                        className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {tool.name}
+                      </label>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
           

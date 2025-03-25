@@ -74,6 +74,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          tools: Json | null
           updated_at: string
           url: string | null
           user_id: string
@@ -83,6 +84,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          tools?: Json | null
           updated_at?: string
           url?: string | null
           user_id: string
@@ -92,9 +94,34 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          tools?: Json | null
           updated_at?: string
           url?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      tools: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          type?: string
+          updated_at?: string
         }
         Relationships: []
       }

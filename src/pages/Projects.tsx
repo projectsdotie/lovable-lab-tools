@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
-import { PlusCircle, Pencil, Trash2, ExternalLink, Users, Share2 } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ExternalLink, Users, Share2, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,8 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { ProjectAccess, AccessLevel, ProjectAccessFormData, Project } from "@/types/projectAccess";
 import { addProjectAccess, removeProjectAccess, getProjectAccess, getAllAccessibleProjects } from "@/utils/projectAccess";
+import { useTools } from "@/hooks/useTools";
 
 const Projects = () => {
   const { user, loading } = useAuth();
@@ -30,6 +32,8 @@ const Projects = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentProject, setCurrentProject] = useState<Partial<Project> | null>(null);
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const { tools, isLoading: toolsLoading } = useTools();
   
   const [isSharingDialogOpen, setIsSharingDialogOpen] = useState(false);
   const [projectAccessList, setProjectAccessList] = useState<ProjectAccess[]>([]);
@@ -63,12 +67,26 @@ const Projects = () => {
     }
   };
 
-  const handleOpenDialog = (project?: Project) => {
+  const handleOpenDialog = async (project?: Project) => {
     if (project) {
       setCurrentProject(project);
+      try {
+        const { data, error } = await supabase
+          .from("projects")
+          .select("tools")
+          .eq("id", project.id)
+          .single();
+          
+        if (error) throw error;
+        setSelectedTools(data.tools || []);
+      } catch (error) {
+        console.error("Error fetching project tools:", error);
+        setSelectedTools([]);
+      }
       setIsEditing(true);
     } else {
       setCurrentProject({ name: "", description: "", url: "" });
+      setSelectedTools([]);
       setIsEditing(false);
     }
     setIsDialogOpen(true);
@@ -77,6 +95,7 @@ const Projects = () => {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setCurrentProject(null);
+    setSelectedTools([]);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -86,6 +105,16 @@ const Projects = () => {
         [e.target.name]: e.target.value,
       });
     }
+  };
+
+  const handleToolToggle = (toolId: string) => {
+    setSelectedTools(prev => {
+      if (prev.includes(toolId)) {
+        return prev.filter(id => id !== toolId);
+      } else {
+        return [...prev, toolId];
+      }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,6 +136,7 @@ const Projects = () => {
             name: currentProject.name,
             description: currentProject.description,
             url: currentProject.url,
+            tools: selectedTools,
             updated_at: new Date().toISOString(),
           })
           .eq("id", currentProject.id);
@@ -124,6 +154,7 @@ const Projects = () => {
             name: currentProject.name,
             description: currentProject.description,
             url: currentProject.url,
+            tools: selectedTools,
             user_id: user?.id,
           });
 
@@ -298,6 +329,14 @@ const Projects = () => {
     }
   };
 
+  const getToolNames = (toolIds: string[]): string => {
+    if (!toolIds || toolIds.length === 0) return "No tools";
+    return toolIds.map(id => {
+      const tool = tools.find(t => t.id === id);
+      return tool?.name || "Unknown";
+    }).join(", ");
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -357,6 +396,12 @@ const Projects = () => {
                     <span className="font-medium">Created:</span>{" "}
                     {new Date(project.created_at).toLocaleDateString()}
                   </div>
+                  {(project as any).tools && (project as any).tools.length > 0 && (
+                    <div className="text-sm text-muted-foreground mt-2">
+                      <span className="font-medium">Tools:</span>{" "}
+                      {getToolNames((project as any).tools)}
+                    </div>
+                  )}
                 </CardContent>
                 <CardFooter className="border-t pt-4 flex justify-between">
                   <div className="flex gap-2">
@@ -452,6 +497,33 @@ const Projects = () => {
                     onChange={handleChange}
                     placeholder="Enter project URL"
                   />
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Tools Used
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {toolsLoading ? (
+                      <div>Loading tools...</div>
+                    ) : (
+                      tools.map((tool) => (
+                        <div key={tool.id} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`tool-${tool.id}`} 
+                            checked={selectedTools.includes(tool.id)}
+                            onCheckedChange={() => handleToolToggle(tool.id)}
+                          />
+                          <label 
+                            htmlFor={`tool-${tool.id}`}
+                            className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          >
+                            {tool.name}
+                          </label>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
 
