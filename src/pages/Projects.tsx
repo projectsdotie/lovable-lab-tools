@@ -57,7 +57,7 @@ const Projects = () => {
       
       const projectsWithValidTools = allProjects.map(project => ({
         ...project,
-        tools: Array.isArray(project.tools) ? project.tools : []
+        tools: Array.isArray(project.tools) ? project.tools.map(String) : []
       }));
       
       setProjects(projectsWithValidTools);
@@ -85,7 +85,9 @@ const Projects = () => {
           
         if (error) throw error;
         
-        const toolsArray = Array.isArray(data.tools) ? data.tools : [];
+        const toolsArray = Array.isArray(data.tools) 
+          ? data.tools.map(String) 
+          : [];
         setSelectedTools(toolsArray);
       } catch (error) {
         console.error("Error fetching project tools:", error);

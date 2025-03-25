@@ -58,6 +58,6 @@ export const getProjectById = async (projectId: string): Promise<ProjectWithTool
   
   return {
     ...data,
-    tools: Array.isArray(data.tools) ? data.tools : []
+    tools: Array.isArray(data.tools) ? data.tools.map(String) : []
   };
 };

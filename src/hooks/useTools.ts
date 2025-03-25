@@ -15,14 +15,12 @@ export const useTools = () => {
     queryKey: ['tools'],
     queryFn: fetchTools,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onSettled: (data, err) => {
-      if (err) {
-        toast({
-          title: "Failed to load tools",
-          description: (err as Error).message,
-          variant: "destructive",
-        });
-      }
+    onError: (err: Error) => {
+      toast({
+        title: "Failed to load tools",
+        description: err.message,
+        variant: "destructive",
+      });
     }
   });
 
