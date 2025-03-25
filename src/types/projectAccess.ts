@@ -12,7 +12,7 @@ export interface ProjectAccess {
   updated_at: string;
   profiles?: {
     username: string | null;
-  };
+  } | null;
 }
 
 export interface ProjectAccessFormData {

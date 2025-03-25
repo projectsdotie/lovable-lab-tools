@@ -84,6 +84,7 @@ export const removeProjectAccess = async (accessId: string) => {
  * @param projectId The ID of the project to get access for
  */
 export const getProjectAccess = async (projectId: string) => {
+  // Using explicitly defined relation to avoid Supabase's automatic joining issues
   const { data, error } = await supabase
     .from("project_access")
     .select(`
@@ -93,7 +94,7 @@ export const getProjectAccess = async (projectId: string) => {
       access_level,
       created_at,
       updated_at,
-      profiles:user_id (username)
+      profiles:profiles!user_id(username)
     `)
     .eq("project_id", projectId);
 
@@ -106,6 +107,14 @@ export const getProjectAccess = async (projectId: string) => {
  * Get all projects including those shared with the current user
  */
 export const getAllAccessibleProjects = async () => {
+  // Get the current user's ID
+  const sessionResponse = await supabase.auth.getSession();
+  const userId = sessionResponse.data.session?.user.id;
+  
+  if (!userId) {
+    throw new Error("User not authenticated");
+  }
+
   // First get the projects owned by the user
   const { data: ownedProjects, error: ownedError } = await supabase
     .from("projects")
@@ -121,7 +130,7 @@ export const getAllAccessibleProjects = async () => {
       access_level,
       projects:project_id (*)
     `)
-    .eq("user_id", supabase.auth.getSession().then(({ data }) => data.session?.user.id) || "");
+    .eq("user_id", userId);
 
   if (sharedError) throw sharedError;
 
