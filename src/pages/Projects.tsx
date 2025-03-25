@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
-import { PlusCircle, Pencil, Trash2, ExternalLink, Users } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ExternalLink, Users, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,16 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ProjectAccess, AccessLevel, ProjectAccessFormData } from "@/types/projectAccess";
-import { addProjectAccess, removeProjectAccess, getProjectAccess } from "@/utils/projectAccess";
-
-type Project = {
-  id: string;
-  name: string;
-  description: string | null;
-  url: string | null;
-  created_at: string;
-};
+import { Badge } from "@/components/ui/badge";
+import type { ProjectAccess, AccessLevel, ProjectAccessFormData, Project } from "@/types/projectAccess";
+import { addProjectAccess, removeProjectAccess, getProjectAccess, getAllAccessibleProjects } from "@/utils/projectAccess";
 
 const Projects = () => {
   const { user, loading } = useAuth();
@@ -57,14 +50,10 @@ const Projects = () => {
   const fetchProjects = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setProjects(data || []);
+      const allProjects = await getAllAccessibleProjects();
+      setProjects(allProjects);
     } catch (error: any) {
+      console.error("Error fetching projects:", error);
       toast({
         title: "Error fetching projects",
         description: error.message,
@@ -204,6 +193,16 @@ const Projects = () => {
   };
 
   const openSharingDialog = async (project: Project) => {
+    // Check if the current user is the owner of the project
+    if (project.user_id !== user?.id) {
+      toast({
+        title: "Cannot share project",
+        description: "You can only share projects that you own.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSelectedProjectForSharing(project);
     setAccessFormData({ email: "", access_level: "view" });
     setIsSharingDialogOpen(true);
@@ -335,9 +334,17 @@ const Projects = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project) => (
-              <Card key={project.id} className="overflow-hidden">
+              <Card key={project.id} className={`overflow-hidden ${project.is_shared ? 'border-primary/20 bg-primary/5' : ''}`}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-xl">{project.name}</CardTitle>
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-xl">{project.name}</CardTitle>
+                    {project.is_shared && (
+                      <Badge variant="outline" className="ml-2 flex items-center gap-1">
+                        <Share2 className="h-3 w-3" />
+                        Shared - {project.access_level}
+                      </Badge>
+                    )}
+                  </div>
                   <CardDescription className="line-clamp-3">
                     {project.description || "No description"}
                   </CardDescription>
@@ -355,28 +362,32 @@ const Projects = () => {
                 </CardContent>
                 <CardFooter className="border-t pt-4 flex justify-between">
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenDialog(project)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openSharingDialog(project)}
-                    >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(project.id)}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!project.is_shared && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDialog(project)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openSharingDialog(project)}
+                        >
+                          <Users className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(project.id)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                   <Button
                     variant="outline"
@@ -518,7 +529,7 @@ const Projects = () => {
                         className="flex items-center justify-between p-2 border rounded-md"
                       >
                         <div>
-                          <div className="text-sm">{access.user_id}</div>
+                          <div className="text-sm">{access.profiles?.username || access.user_id}</div>
                           <div className="text-xs text-muted-foreground">
                             {access.access_level} access
                           </div>

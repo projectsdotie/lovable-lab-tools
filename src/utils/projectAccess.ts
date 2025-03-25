@@ -86,10 +86,55 @@ export const removeProjectAccess = async (accessId: string) => {
 export const getProjectAccess = async (projectId: string) => {
   const { data, error } = await supabase
     .from("project_access")
-    .select("*")
+    .select(`
+      id,
+      user_id,
+      project_id,
+      access_level,
+      created_at,
+      updated_at,
+      profiles:user_id (username)
+    `)
     .eq("project_id", projectId);
 
   if (error) throw error;
   
   return data || [];
+};
+
+/**
+ * Get all projects including those shared with the current user
+ */
+export const getAllAccessibleProjects = async () => {
+  // First get the projects owned by the user
+  const { data: ownedProjects, error: ownedError } = await supabase
+    .from("projects")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (ownedError) throw ownedError;
+
+  // Then get the projects shared with the user through project_access
+  const { data: sharedProjects, error: sharedError } = await supabase
+    .from("project_access")
+    .select(`
+      access_level,
+      projects:project_id (*)
+    `)
+    .eq("user_id", supabase.auth.getSession().then(({ data }) => data.session?.user.id) || "");
+
+  if (sharedError) throw sharedError;
+
+  // Combine the results
+  const sharedProjectsData = sharedProjects
+    ? sharedProjects
+        .filter(item => item.projects)
+        .map(item => ({
+          ...item.projects,
+          access_level: item.access_level,
+          is_shared: true
+        }))
+    : [];
+
+  return [...(ownedProjects || []).map(p => ({ ...p, is_shared: false })), ...sharedProjectsData];
 };
