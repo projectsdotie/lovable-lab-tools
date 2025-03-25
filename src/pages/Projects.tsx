@@ -94,6 +94,7 @@ const Projects = () => {
 
     try {
       if (isEditing && currentProject.id) {
+        // Update existing project
         const { error } = await supabase
           .from("projects")
           .update({
@@ -111,6 +112,7 @@ const Projects = () => {
           description: "Your project has been updated successfully.",
         });
       } else {
+        // Create new project
         const { error } = await supabase
           .from("projects")
           .insert({
@@ -128,6 +130,7 @@ const Projects = () => {
         });
       }
 
+      // Refresh the projects list
       fetchProjects();
       handleCloseDialog();
     } catch (error: any) {
@@ -154,6 +157,7 @@ const Projects = () => {
           description: "Your project has been deleted successfully.",
         });
 
+        // Refresh the projects list
         fetchProjects();
       } catch (error: any) {
         toast({
@@ -165,16 +169,31 @@ const Projects = () => {
     }
   };
 
-  const handleOpenProject = (project: Project) => {
+  const handleOpenProjectUrl = (project: Project) => {
+    let processedUrl = project.url?.trim() || "";
+    
+    // Add https:// if no protocol is specified
+    if (processedUrl && !processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+      processedUrl = `https://${processedUrl}`;
+    }
+    
+    // Store the current project in localStorage to access it from the dashboard
     try {
       localStorage.setItem('currentProject', JSON.stringify(project));
       
+      // Display success message
       toast({
         title: "Project loaded",
-        description: `Loading ${project.name} in the dashboard.`,
+        description: `Opening ${project.name} and loading associated tools data.`,
       });
       
+      // Navigate to the dashboard (/) with the loaded project
       navigate('/');
+      
+      // Also open the project URL in a new tab if it exists
+      if (processedUrl) {
+        window.open(processedUrl, '_blank', 'noopener,noreferrer');
+      }
     } catch (error: any) {
       toast({
         title: "Error loading project",
@@ -257,7 +276,7 @@ const Projects = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleOpenProject(project)}
+                    onClick={() => handleOpenProjectUrl(project)}
                   >
                     <ExternalLink className="h-4 w-4 mr-1" /> Open
                   </Button>
