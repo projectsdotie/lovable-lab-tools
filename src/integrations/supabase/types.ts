@@ -103,7 +103,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_access_project: {
+        Args: {
+          project_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       access_level: "view" | "edit"

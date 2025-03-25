@@ -213,13 +213,8 @@ const Projects = () => {
   const fetchProjectAccess = async (projectId: string) => {
     setLoadingAccess(true);
     try {
-      const { data, error } = await supabase
-        .from("project_access")
-        .select("*")
-        .eq("project_id", projectId);
-
-      if (error) throw error;
-      setProjectAccessList(data || []);
+      const accessList = await getProjectAccess(projectId);
+      setProjectAccessList(accessList);
     } catch (error: any) {
       toast({
         title: "Error fetching access list",
