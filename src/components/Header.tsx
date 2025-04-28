@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Moon, Sun, Users, LayoutDashboard } from "lucide-react";
@@ -90,6 +89,17 @@ export function Header({ className }: HeaderProps) {
         </div>
 
         <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-full hover:bg-accent"
+            asChild
+          >
+            <a href="https://discord.gg/JhYNss2P7K" target="_blank" rel="noopener noreferrer">
+              Discord
+            </a>
+          </Button>
+          
           <Button
             variant="ghost"
             size="icon"

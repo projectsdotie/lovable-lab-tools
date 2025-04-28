@@ -25,8 +25,8 @@ interface ProjectPreviewProps {
 }
 
 export function ProjectPreview({ className }: ProjectPreviewProps) {
-  const [url, setUrl] = useState("https://lovable.dev/");
-  const [currentUrl, setCurrentUrl] = useState("https://lovable.dev/");
+  const [url, setUrl] = useState("https://aibuild.club");
+  const [currentUrl, setCurrentUrl] = useState("https://aibuild.club");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -123,7 +123,7 @@ export function ProjectPreview({ className }: ProjectPreviewProps) {
       });
       
       setIsDialogOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Error handling is done in the hook
       console.error("Error in save project handler:", error);
     }
